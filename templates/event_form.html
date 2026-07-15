@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Event — CampusPulse{% endblock %}
+
+{% block content %}
+<div class="form-page single-form">
+  <div class="form-main wide">
+    <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Back to Dashboard</a>
+    <div class="form-header">
+      <h1>{{ action }} Event</h1>
+      <p>{% if action == 'Create' %}Set up a new campus event{% else %}Update event details{% endif %}</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-error">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" class="reg-form">
+      <div class="form-group">
+        <label>Event Name</label>
+        <input type="text" name="name" value="{{ event.name if event else '' }}" placeholder="e.g. Bug Hunt Bonanza" required />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea name="description" rows="3" placeholder="Brief description of the event...">{{ event.description if event else '' }}</textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date"           
+          name="date"
+          value="{{ event.date if event else '' }}"
+          required />
+        </div>
+        <div class="form-group">
+          <label>Time</label>
+          <input type="time" name="time" value="{{ event.time if event else '' }}" required />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Venue</label>
+          <input type="text" name="venue" value="{{ event.venue if event else '' }}" placeholder="e.g. Computer Lab" required />
+        </div>
+        <div class="form-group">
+          <label>Max Participants</label>
+          <input type="number" name="max_participants" value="{{ event.max_participants if event else '' }}" min="1" placeholder="e.g. 50" required />
+        </div>
+      </div>
+      <div class="form-actions">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn-outline">Cancel</a>
+        <button type="submit" class="btn-primary">{{ action }} Event →</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

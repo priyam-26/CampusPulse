@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Attendance — {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <div>
+      <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Dashboard</a>
+      <h1>Attendance — {{ event.name }}</h1>
+      <p>📅 {{ event.date }} &nbsp;|&nbsp; 📍 {{ event.venue }}</p>
+    </div>
+    <div class="header-actions">
+      <a href="{{ url_for('export_csv', event_id=event.id) }}" class="btn-outline">⬇ Export CSV</a>
+      <a href="{{ url_for('export_pdf', event_id=event.id) }}" class="btn-outline">⬇ Export PDF</a>
+    </div>
+  </div>
+
+  <!-- Live Stats -->
+  <div class="stats-grid mini">
+    <div class="stat-card">
+      <div class="stat-num" id="totalAtt">{{ attendance|length }}</div>
+      <div class="stat-label">Checked In</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ event.max_participants }}</div>
+      <div class="stat-label">Max Capacity</div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header">
+      <h2>Check-in Log</h2>
+      <button onclick="refreshPage()" class="btn-outline">🔄 Refresh</button>
+    </div>
+
+    {% if attendance %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Roll Number</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Check-in Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in attendance %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ a.student_name }}</strong></td>
+            <td><code>{{ a.college_id }}</code></td>
+            <td>{{ a.email }}</td>
+            <td>{{ a.phone }}</td>
+            <td>{{ a.checked_in_at[:16] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>No check-ins yet</h3>
+      <p>Use the QR scanner to check in attendees.</p>
+      <a href="{{ url_for('checkin_page') }}" class="btn-primary">Open QR Scanner</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function refreshPage() { location.reload(); }
+// Auto-refresh every 30s
+setInterval(() => location.reload(), 30000);
+</script>
+{% endblock %}

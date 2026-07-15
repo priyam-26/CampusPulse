@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — CampusPulse{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <div>
+      <h1>Admin Dashboard</h1>
+      <p>Welcome back, <strong>{{ session.admin_username }}</strong></p>
+    </div>
+    <a href="{{ url_for('create_event') }}" class="btn-primary">+ Create Event</a>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">📅</div>
+      <div class="stat-num">{{ total_events }}</div>
+      <div class="stat-label">Total Events</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📝</div>
+      <div class="stat-num">{{ total_registrations }}</div>
+      <div class="stat-label">Registrations</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-num">{{ total_attendance }}</div>
+      <div class="stat-label">Attendees</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📊</div>
+      <div class="stat-num">
+        {% if total_registrations > 0 %}
+          {{ (total_attendance / total_registrations * 100)|int }}%
+        {% else %}—{% endif %}
+      </div>
+      <div class="stat-label">Attendance Rate</div>
+    </div>
+  </div>
+
+  <!-- Events Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <h2>All Events</h2>
+      <a href="{{ url_for('checkin_page') }}" class="btn-outline">📷 QR Check-in</a>
+    </div>
+
+    {% if events %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Date & Time</th>
+            <th>Venue</th>
+            <th>Registrations</th>
+            <th>Attendance</th>
+            <th>Share Link</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in events %}
+          <tr>
+            <td>
+              <strong>{{ event.name }}</strong>
+              {% if event.description %}
+                <br><small>{{ event.description[:60] }}...</small>
+              {% endif %}
+            </td>
+            <td>{{ event.date }}<br><small>{{ event.time }}</small></td>
+            <td>{{ event.venue }}</td>
+            <td>
+              <div class="mini-stat">{{ event.reg_count }} / {{ event.max_participants }}</div>
+              <div class="mini-bar"><div style="width:{{ [(event.reg_count/event.max_participants*100),100]|min }}%"></div></div>
+            </td>
+            <td>
+              <span class="att-badge">{{ event.att_count }}</span>
+            </td>
+            <td>
+              <div class="share-link-cell">
+                <input type="text" class="share-link-input" value="{{ event.share_url }}" readonly style="width:100%; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:12px;">
+                <button type="button" class="action-btn" onclick="copyShareLink('{{ event.share_url }}')">📋</button>
+              </div>
+            </td>
+            <td class="actions">
+              <a href="{{ url_for('event_registrations', event_id=event.id) }}" class="action-btn">👥</a>
+              <a href="{{ url_for('event_attendance', event_id=event.id) }}" class="action-btn">📋</a>
+              <a href="{{ url_for('export_csv', event_id=event.id) }}" class="action-btn">CSV</a>
+              <a href="{{ url_for('export_pdf', event_id=event.id) }}" class="action-btn">PDF</a>
+              <a href="{{ url_for('edit_event', event_id=event.id) }}" class="action-btn edit">✏️</a>
+              <form method="POST" action="{{ url_for('delete_event', event_id=event.id) }}"
+                    onsubmit="return confirm('Are you sure you want to delete this event? This action cannot be undone and all registrations will be removed.')" style="display:inline">
+                <button type="submit" class="action-btn delete">🗑</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📭</div>
+      <h3>No events created yet</h3>
+      <a href="{{ url_for('create_event') }}" class="btn-primary">Create your first event</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function copyShareLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    alert('✅ Share link copied to clipboard!');
+  }).catch(() => {
+    // Fallback for older browsers
+    const input = document.createElement('textarea');
+    input.value = url;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    alert('✅ Share link copied to clipboard!');
+  });
+}
+</script>
+{% endblock %}

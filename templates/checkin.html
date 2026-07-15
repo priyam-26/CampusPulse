@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}QR Check-in — CampusPulse{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <div>
+      <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Dashboard</a>
+      <h1>QR Code Check-in</h1>
+      <p>Scan student QR codes to record attendance</p>
+    </div>
+  </div>
+
+  <div class="checkin-layout">
+    <!-- Scanner -->
+    <div class="scanner-card">
+      <h2>📷 QR Scanner</h2>
+      <div id="reader"></div>
+      <div class="scanner-controls">
+        <button id="startBtn" class="btn-primary" onclick="startScan()">Start Camera</button>
+        <button id="stopBtn" class="btn-outline" onclick="stopScan()" style="display:none">Stop Camera</button>
+      </div>
+
+      <!-- Manual QR input -->
+      <div class="manual-entry">
+        <p>Or enter QR data manually:</p>
+        <div class="manual-row">
+          <input type="text" id="manualInput" placeholder='{"registration_id":1,"event_id":1}' />
+          <button class="btn-primary" onclick="verifyManual()">Verify</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card">
+      <h2>🔍 Result</h2>
+      <div id="scanResult" class="scan-result-box">
+        <div class="scan-idle">
+          <div class="scan-icon">▦</div>
+          <p>Waiting for scan...</p>
+        </div>
+      </div>
+
+      <!-- Live attendance log -->
+      <div class="live-log">
+        <h3>Recent Check-ins</h3>
+        <ul id="logList">
+          <li class="log-empty">No check-ins yet</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let html5QrcodeScanner = null;
+let isScanning = false;
+let lastScan = '';
+const logList = document.getElementById('logList');
+
+function startScan() {
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = 'inline-block';
+  
+  html5QrcodeScanner = new Html5Qrcode("reader");
+  html5QrcodeScanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    (decodedText) => {
+      if (decodedText !== lastScan) {
+        lastScan = decodedText;
+        verifyQR(decodedText);
+        setTimeout(() => { lastScan = ''; }, 3000);
+      }
+    },
+    () => {}
+  ).catch(err => {
+    showResult('error', '❌ Camera Error', err.toString());
+    stopScan();
+  });
+  isScanning = true;
+}
+
+function stopScan() {
+  if (html5QrcodeScanner && isScanning) {
+    html5QrcodeScanner.stop().catch(()=>{});
+  }
+  isScanning = false;
+  document.getElementById('startBtn').style.display = 'inline-block';
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+function verifyManual() {
+  const val = document.getElementById('manualInput').value.trim();
+  if (!val) return;
+  verifyQR(val);
+}
+
+async function verifyQR(qrData) {
+  const res = await fetch('/admin/checkin/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ qr_data: qrData })
+  });
+  const data = await res.json();
+  
+  const resultBox = document.getElementById('scanResult');
+  if (data.status === 'success') {
+    resultBox.innerHTML = `
+      <div class="result-success">
+        <div class="result-big">✅</div>
+        <h3>Entry Allowed</h3>
+        <p><strong>${data.name}</strong></p>
+        <p class="small">${data.college_id} — ${data.event}</p>
+      </div>`;
+    addLog('✅', data.name, data.college_id, 'success');
+  } else if (data.status === 'duplicate') {
+    resultBox.innerHTML = `
+      <div class="result-warning">
+        <div class="result-big">⚠️</div>
+        <h3>Already Checked In</h3>
+        <p>${data.message}</p>
+      </div>`;
+    addLog('⚠️', data.message, '', 'warning');
+  } else {
+    resultBox.innerHTML = `
+      <div class="result-error">
+        <div class="result-big">❌</div>
+        <h3>Invalid QR</h3>
+        <p>${data.message}</p>
+      </div>`;
+    addLog('❌', data.message, '', 'error');
+  }
+}
+
+function addLog(icon, name, id, type) {
+  const empty = logList.querySelector('.log-empty');
+  if (empty) empty.remove();
+  const li = document.createElement('li');
+  li.className = `log-item log-${type}`;
+  li.innerHTML = `<span>${icon}</span><span>${name} ${id ? '— '+id : ''}</span><span class="log-time">${new Date().toLocaleTimeString()}</span>`;
+  logList.prepend(li);
+  // Keep only last 10
+  while (logList.children.length > 10) logList.removeChild(logList.lastChild);
+}
+</script>
+{% endblock %}

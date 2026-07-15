@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Register — {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <div class="form-sidebar">
+    <div class="sidebar-content">
+      <a href="{{ url_for('index') }}" class="back-link">← Back to Events</a>
+      <h2>{{ event.name }}</h2>
+      <div class="sidebar-details">
+        <div class="detail-item"><span>📅</span> {{ event.date }}</div>
+        <div class="detail-item"><span>⏰</span> {{ event.time }}</div>
+        <div class="detail-item"><span>📍</span> {{ event.venue }}</div>
+        <div class="detail-item"><span>👥</span> {{ reg_count }} / {{ event.max_participants }} registered</div>
+      </div>
+      {% if event.description %}
+      <p class="sidebar-desc">{{ event.description }}</p>
+      {% endif %}
+      <div class="qr-hint">
+        <div class="qr-icon">▦</div>
+        <p>You'll receive a unique QR pass after registration for event entry.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-main">
+    <div class="form-header">
+      <h1>Register for Event</h1>
+      <p>Fill in your details to secure your spot</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">⚠️ {{ error }}</div>
+    {% endif %}
+
+    <form method="POST" class="reg-form">
+      <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" name="name" placeholder="e.g. Rishi Gupta" required />
+      </div>
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="example@gmail.com" required />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="phone">Phone Number</label>
+          <input type="tel" id="phone" name="phone" placeholder="+91 XXXXX XXXXX" required />
+        </div>
+        <div class="form-group">
+          <label for="college_id">Roll Number</label>
+          <input type="text" id="college_id" name="college_id" placeholder="e.g. YYYY-BRANCH-XX" required />
+        </div>
+      </div>
+      <button type="submit" class="btn-primary btn-large">
+        Complete Registration →
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

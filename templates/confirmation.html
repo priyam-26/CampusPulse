@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Registration Confirmed!{% endblock %}
+
+{% block content %}
+<div class="confirmation-page">
+  <div class="confirmation-card">
+    <div class="success-icon">✅</div>
+    <h1>Registration Confirmed!</h1>
+    <p class="sub">You're all set for <strong>{{ reg.event_name }}</strong></p>
+
+    <div class="ticket">
+      <div class="ticket-header">
+        <span class="ticket-label">EVENT PASS</span>
+        <span class="ticket-id">#{{ '%04d' % reg.id }}</span>
+      </div>
+      <div class="ticket-body">
+        <div class="ticket-info">
+          <div class="ticket-row">
+            <span class="t-label">Name</span>
+            <span class="t-value">{{ reg.student_name }}</span>
+          </div>
+          <div class="ticket-row">
+            <span class="t-label">Roll Number</span>
+            <span class="t-value">{{ reg.college_id }}</span>
+          </div>
+          <div class="ticket-row">
+            <span class="t-label">Event</span>
+            <span class="t-value">{{ reg.event_name }}</span>
+          </div>
+          <div class="ticket-row">
+            <span class="t-label">Date</span>
+            <span class="t-value">{{ reg.date }}</span>
+          </div>
+          <div class="ticket-row">
+            <span class="t-label">Time</span>
+            <span class="t-value">{{ reg.time }}</span>
+          </div>
+          <div class="ticket-row">
+            <span class="t-label">Venue</span>
+            <span class="t-value">{{ reg.venue }}</span>
+          </div>
+        </div>
+        <div class="ticket-qr">
+          <img src="{{ url_for('get_qr', reg_id=reg.id) }}" alt="Your QR Code" />
+          <p>Scan at entry</p>
+        </div>
+      </div>
+      <div class="ticket-perforations"></div>
+    </div>
+
+    <div class="confirmation-actions">
+      <a href="{{ url_for('get_qr', reg_id=reg.id) }}" download="event_qr.png" class="btn-primary">⬇ Download QR Code</a>
+      <a href="{{ url_for('index') }}" class="btn-outline">Browse More Events</a>
+    </div>
+
+    <div class="reminder-box">
+      💡 <strong>Remember:</strong> Carry this QR code (screenshot or printout) to the event for entry.
+    </div>
+  </div>
+</div>
+{% endblock %}

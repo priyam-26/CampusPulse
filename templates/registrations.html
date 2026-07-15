@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Registrations — {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <div>
+      <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Dashboard</a>
+      <h1>{{ event.name }}</h1>
+      <p>📅 {{ event.date }} &nbsp;|&nbsp; 📍 {{ event.venue }}</p>
+    </div>
+    <div class="header-actions">
+      <a href="{{ url_for('export_csv', event_id=event.id) }}" class="btn-outline">⬇ CSV</a>
+      <a href="{{ url_for('export_pdf', event_id=event.id) }}" class="btn-outline">⬇ PDF</a>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header">
+      <h2>Registered Students ({{ registrations|length }})</h2>
+    </div>
+
+    {% if registrations %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Roll Number</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Registered At</th>
+            <th>Status</th>
+            <th>Check-in</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in registrations %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ r.student_name }}</strong></td>
+            <td><code>{{ r.college_id }}</code></td>
+            <td>{{ r.email }}</td>
+            <td>{{ r.phone }}</td>
+            <td>{{ r.registered_at[:16] }}</td>
+            <td>
+              {% if r.checked_in %}
+                <span class="status-badge status-present">✅ Present</span>
+              {% else %}
+                <span class="status-badge status-absent">⏳ Pending</span>
+              {% endif %}
+            </td>
+            <td>{{ r.checked_in_at[:16] if r.checked_in_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">👥</div>
+      <h3>No registrations received yet</h3>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
