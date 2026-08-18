@@ -91,7 +91,11 @@
               <a href="{{ url_for('export_pdf', event_id=event.id) }}" class="action-btn">PDF</a>
               <a href="{{ url_for('edit_event', event_id=event.id) }}" class="action-btn edit">✏️</a>
               <form method="POST" action="{{ url_for('delete_event', event_id=event.id) }}"
-                    onsubmit="return confirm('Are you sure you want to delete this event? This action cannot be undone and all registrations will be removed.')" style="display:inline">
+                    data-confirm-title="Delete Event?"
+                    data-confirm-message="Are you sure you want to delete this event? This action cannot be undone and all registrations will be removed."
+                    data-confirm-confirm-text="Delete"
+                    data-confirm-icon="🗑"
+                    style="display:inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="action-btn delete">🗑</button>
               </form>
@@ -114,7 +118,7 @@
 <script>
 function copyShareLink(url) {
   navigator.clipboard.writeText(url).then(() => {
-    alert('✅ Share link copied to clipboard!');
+    showToast('✅ Share link copied to clipboard!', 'success');
   }).catch(() => {
     // Fallback for older browsers
     const input = document.createElement('textarea');
@@ -123,7 +127,7 @@ function copyShareLink(url) {
     input.select();
     document.execCommand('copy');
     document.body.removeChild(input);
-    alert('✅ Share link copied to clipboard!');
+    showToast('✅ Share link copied to clipboard!', 'success');
   });
 }
 </script>

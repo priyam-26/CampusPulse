@@ -37,6 +37,22 @@
     <p>© 2026 CampusPulse — College Event Management System</p>
   </footer>
 
+  <!-- Custom confirm dialog (replaces window.confirm) -->
+  <div class="modal-overlay" id="confirmOverlay">
+    <div class="modal-box" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <div class="modal-icon" id="confirmIcon">⚠️</div>
+      <h3 id="confirmTitle">Are you sure?</h3>
+      <p id="confirmMessage"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" id="confirmCancelBtn">Cancel</button>
+        <button type="button" class="btn-danger" id="confirmOkBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications (replaces window.alert) -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
   <script src="{{ url_for('static', filename='script.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
