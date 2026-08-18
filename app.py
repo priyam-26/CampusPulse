@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, session, flash
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import qrcode
 import os
 import csv
@@ -15,16 +16,38 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.units import inch
 from functools import wraps
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-# Load environment variables
+# Load environment variables (no-op on Vercel, useful for local dev)
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
 
-# Use PostgreSQL DATABASE_URL
-QR_DIR = 'qr_codes'
-os.makedirs(QR_DIR, exist_ok=True)
+# Vercel sits behind a proxy — without this, request.host_url / share links
+# come back as http:// and the wrong host, since Flask trusts the raw
+# connection info instead of the X-Forwarded-* headers Vercel sets.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# Harden session cookies in production, but don't break local http testing
+IS_PROD = os.environ.get('FLASK_ENV') != 'development'
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=IS_PROD,
+)
+
+# Supabase Postgres connection string, e.g.
+# postgresql://postgres.xxxx:PASSWORD@aws-0-region.pooler.supabase.com:6543/postgres
+# IMPORTANT: use Supabase's *pooled* (pgbouncer, port 6543) connection string here,
+# not the direct one — Vercel spins up many short-lived function instances, and each
+# one opens its own connection, so the direct connection limit gets exhausted fast.
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
@@ -33,11 +56,10 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
 class DBWrapper:
     def __init__(self):
-        self.conn = sqlite3.connect("database.db")
-        self.conn.row_factory = sqlite3.Row
+        self.conn = psycopg2.connect(DATABASE_URL, sslmode='require')
 
     def execute(self, query, params=()):
-        cur = self.conn.cursor()
+        cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(query, params)
         return cur
 
@@ -54,7 +76,7 @@ def init_db():
     conn = get_db()
 
     conn.execute('''CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         description TEXT,
         date TEXT NOT NULL,
@@ -66,37 +88,39 @@ def init_db():
     )''')
 
     conn.execute('''CREATE TABLE IF NOT EXISTS registrations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        event_id INTEGER NOT NULL,
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         student_name TEXT NOT NULL,
         email TEXT NOT NULL,
         phone TEXT NOT NULL,
         college_id TEXT NOT NULL,
-        qr_path TEXT,
-        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+        qr_code TEXT,
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
 
     conn.execute('''CREATE TABLE IF NOT EXISTS attendance (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        registration_id INTEGER NOT NULL UNIQUE,
+        id SERIAL PRIMARY KEY,
+        registration_id INTEGER NOT NULL UNIQUE REFERENCES registrations(id) ON DELETE CASCADE,
         event_id INTEGER NOT NULL,
         student_name TEXT,
         college_id TEXT,
-        checked_in_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(registration_id) REFERENCES registrations(id) ON DELETE CASCADE
+        checked_in_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
 
-    # Seed admin
     conn.execute('''CREATE TABLE IF NOT EXISTS admins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL
     )''')
-    conn.execute(
-    "INSERT OR IGNORE INTO admins (username, password) VALUES (?, ?)",
-    (ADMIN_USERNAME, ADMIN_PASSWORD)
-    )
+
+    # Seed / refresh the admin account from env vars. Password is hashed —
+    # never stored or compared in plain text.
+    if ADMIN_USERNAME and ADMIN_PASSWORD:
+        conn.execute(
+            '''INSERT INTO admins (username, password) VALUES (%s, %s)
+               ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password''',
+            (ADMIN_USERNAME, generate_password_hash(ADMIN_PASSWORD))
+        )
 
     conn.commit()
     conn.close()
@@ -112,24 +136,13 @@ def admin_required(f):
     return decorated
 
 # ─── QR Code Generation ──────────────────────────────────────────────────────
-
-def generate_qr(registration_id, student_name, event_id):
-    """Generate QR code and save as file"""
-    data = json.dumps({
-        "registration_id": registration_id,
-        "student_name": student_name,
-        "event_id": event_id
-    })
-    qr = qrcode.QRCode(version=1, box_size=10, border=4)
-    qr.add_data(data)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    path = os.path.join(QR_DIR, f"reg_{registration_id}.png")
-    img.save(path)
-    return path
+# Vercel's filesystem is read-only outside /tmp, and /tmp itself doesn't
+# persist between invocations of a serverless function — so QR codes can no
+# longer be saved as files on disk. Instead we generate them as base64 and
+# store that string directly in the registrations row.
 
 def generate_qr_base64(registration_id, student_name, event_id):
-    """Generate QR code as base64 string for web display"""
+    """Generate a QR code and return it as a base64 data URI."""
     data = json.dumps({
         "registration_id": registration_id,
         "student_name": student_name,
@@ -139,8 +152,7 @@ def generate_qr_base64(registration_id, student_name, event_id):
     qr.add_data(data)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Convert to base64
+
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
     buffer.seek(0)
@@ -166,12 +178,12 @@ def index():
 @app.route('/register/<int:event_id>', methods=['GET', 'POST'])
 def register(event_id):
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE id = ?', (event_id,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE id = %s', (event_id,)).fetchone()
     if not event:
         conn.close()
         return "Event not found", 404
 
-    reg_count = conn.execute('SELECT COUNT(*) FROM registrations WHERE event_id = ?', (event_id,)).fetchone()[0]
+    reg_count = conn.execute('SELECT COUNT(*) FROM registrations WHERE event_id = %s', (event_id,)).fetchone()['count']
 
     if request.method == 'POST':
         name = request.form['name'].strip()
@@ -181,7 +193,7 @@ def register(event_id):
 
         # Check duplicate
         existing = conn.execute(
-            'SELECT id FROM registrations WHERE event_id=? AND (email=? OR college_id=?)',
+            'SELECT id FROM registrations WHERE event_id=%s AND (email=%s OR college_id=%s)',
             (event_id, email, college_id)
         ).fetchone()
         if existing:
@@ -193,15 +205,15 @@ def register(event_id):
             conn.close()
             return render_template('register.html', event=event, reg_count=reg_count,
                                    error="Event is full. No more registrations allowed.")
-        
-        conn.execute(
-            'INSERT INTO registrations (event_id, student_name, email, phone, college_id) VALUES (?,?,?,?,?)',
+
+        row = conn.execute(
+            '''INSERT INTO registrations (event_id, student_name, email, phone, college_id)
+               VALUES (%s,%s,%s,%s,%s) RETURNING id''',
             (event_id, name, email, phone, college_id)
-        )
-        conn.commit()
-        reg_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-        qr_path = generate_qr(reg_id, name, event_id)
-        conn.execute('UPDATE registrations SET qr_path=? WHERE id=?', (qr_path, reg_id))
+        ).fetchone()
+        reg_id = row['id']
+        qr_code = generate_qr_base64(reg_id, name, event_id)
+        conn.execute('UPDATE registrations SET qr_code=%s WHERE id=%s', (qr_code, reg_id))
         conn.commit()
         conn.close()
         return redirect(url_for('confirmation', reg_id=reg_id))
@@ -213,11 +225,11 @@ def register(event_id):
 def register_via_link(share_link):
     """Register for an event using a shareable link"""
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE share_link = ?', (share_link,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE share_link = %s', (share_link,)).fetchone()
     if not event:
         conn.close()
         return "Event not found", 404
-    
+
     # Redirect to normal registration
     conn.close()
     return redirect(url_for('register', event_id=event['id']))
@@ -228,7 +240,7 @@ def confirmation(reg_id):
     reg = conn.execute('''
         SELECT r.*, e.name as event_name, e.date, e.time, e.venue
         FROM registrations r JOIN events e ON r.event_id = e.id
-        WHERE r.id = ?
+        WHERE r.id = %s
     ''', (reg_id,)).fetchone()
     conn.close()
     return render_template('confirmation.html', reg=reg)
@@ -236,10 +248,12 @@ def confirmation(reg_id):
 @app.route('/qr/<int:reg_id>')
 def get_qr(reg_id):
     conn = get_db()
-    reg = conn.execute('SELECT qr_path FROM registrations WHERE id=?', (reg_id,)).fetchone()
+    reg = conn.execute('SELECT qr_code FROM registrations WHERE id=%s', (reg_id,)).fetchone()
     conn.close()
-    if reg and reg['qr_path'] and os.path.exists(reg['qr_path']):
-        return send_file(reg['qr_path'], mimetype='image/png')
+    if reg and reg['qr_code']:
+        header, encoded = reg['qr_code'].split(',', 1)
+        img_bytes = base64.b64decode(encoded)
+        return send_file(io.BytesIO(img_bytes), mimetype='image/png')
     return "QR not found", 404
 
 # ─── Admin Auth ──────────────────────────────────────────────────────────────
@@ -253,10 +267,9 @@ def admin_login():
         username = request.form['username']
         password = request.form['password']
         conn = get_db()
-        admin = conn.execute('SELECT * FROM admins WHERE username=? AND password=?',
-                             (username, password)).fetchone()
+        admin = conn.execute('SELECT * FROM admins WHERE username=%s', (username,)).fetchone()
         conn.close()
-        if admin:
+        if admin and check_password_hash(admin['password'], password):
             session['admin_logged_in'] = True
             session['admin_username'] = username
             return redirect(url_for('admin_dashboard'))
@@ -284,7 +297,7 @@ def admin_dashboard():
     total_registrations = sum(e['reg_count'] for e in events)
     total_attendance = sum(e['att_count'] for e in events)
     conn.close()
-    
+
     # Build shareable URLs
     base_url = request.host_url.rstrip('/')
     events_with_links = []
@@ -293,7 +306,7 @@ def admin_dashboard():
         event_dict = dict(event)
         event_dict['share_url'] = share_url
         events_with_links.append(event_dict)
-    
+
     return render_template('admin.html', events=events_with_links,
                            total_events=total_events,
                            total_registrations=total_registrations,
@@ -324,10 +337,10 @@ def create_event():
         existing = conn.execute(
             '''
             SELECT id FROM events
-            WHERE name = ?
-            AND date = ?
-            AND time = ?
-            AND venue = ?
+            WHERE name = %s
+            AND date = %s
+            AND time = %s
+            AND venue = %s
             ''',
             (name, date, time, venue)
         ).fetchone()
@@ -339,7 +352,7 @@ def create_event():
                 event=None,
                 action='Create'
             )
-        conn.execute('INSERT INTO events (name, description, date, time, venue, max_participants, share_link) VALUES (?,?,?,?,?,?,?)',
+        conn.execute('INSERT INTO events (name, description, date, time, venue, max_participants, share_link) VALUES (%s,%s,%s,%s,%s,%s,%s)',
                      (name, description, date, time, venue, max_p, share_link))
         conn.commit()
         conn.close()
@@ -350,10 +363,10 @@ def create_event():
 @admin_required
 def edit_event(event_id):
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE id=%s', (event_id,)).fetchone()
     if request.method == 'POST':
-        conn.execute('''UPDATE events SET name=?, description=?, date=?, time=?, venue=?, max_participants=?
-                        WHERE id=?''',
+        conn.execute('''UPDATE events SET name=%s, description=%s, date=%s, time=%s, venue=%s, max_participants=%s
+                        WHERE id=%s''',
                      (request.form['name'], request.form.get('description',''),
                       request.form['date'], request.form['time'],
                       request.form['venue'], int(request.form['max_participants']), event_id))
@@ -367,9 +380,11 @@ def edit_event(event_id):
 @admin_required
 def delete_event(event_id):
     conn = get_db()
-    conn.execute('DELETE FROM events WHERE id=?', (event_id,))
-    conn.execute('DELETE FROM registrations WHERE event_id=?', (event_id,))
-    conn.execute('DELETE FROM attendance WHERE event_id=?', (event_id,))
+    # registrations/attendance clean up automatically via ON DELETE CASCADE,
+    # but deleting explicitly first keeps this safe even if the FK is ever removed.
+    conn.execute('DELETE FROM attendance WHERE event_id=%s', (event_id,))
+    conn.execute('DELETE FROM registrations WHERE event_id=%s', (event_id,))
+    conn.execute('DELETE FROM events WHERE id=%s', (event_id,))
     conn.commit()
     conn.close()
     return redirect(url_for('admin_dashboard'))
@@ -378,13 +393,13 @@ def delete_event(event_id):
 @admin_required
 def event_registrations(event_id):
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE id=%s', (event_id,)).fetchone()
     registrations = conn.execute('''
         SELECT r.*, 
                CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as checked_in,
                a.checked_in_at
         FROM registrations r LEFT JOIN attendance a ON r.id = a.registration_id
-        WHERE r.event_id = ?
+        WHERE r.event_id = %s
         ORDER BY r.registered_at DESC
     ''', (event_id,)).fetchall()
     conn.close()
@@ -416,20 +431,20 @@ def verify_qr():
     reg = conn.execute('''
         SELECT r.*, e.name as event_name
         FROM registrations r JOIN events e ON r.event_id = e.id
-        WHERE r.id = ?
+        WHERE r.id = %s
     ''', (reg_id,)).fetchone()
 
     if not reg:
         conn.close()
         return jsonify({'status': 'invalid', 'message': '❌ Registration not found'})
 
-    already = conn.execute('SELECT id FROM attendance WHERE registration_id=?', (reg_id,)).fetchone()
+    already = conn.execute('SELECT id FROM attendance WHERE registration_id=%s', (reg_id,)).fetchone()
     if already:
         conn.close()
         return jsonify({'status': 'duplicate', 'message': f'⚠️ {reg["student_name"]} already checked in!'})
 
     conn.execute('''INSERT INTO attendance (registration_id, event_id, student_name, college_id)
-                    VALUES (?,?,?,?)''',
+                    VALUES (%s,%s,%s,%s)''',
                  (reg_id, event_id, reg['student_name'], reg['college_id']))
     conn.commit()
     conn.close()
@@ -447,11 +462,11 @@ def verify_qr():
 @admin_required
 def event_attendance(event_id):
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE id=%s', (event_id,)).fetchone()
     attendance = conn.execute('''
         SELECT a.*, r.email, r.phone
         FROM attendance a JOIN registrations r ON a.registration_id = r.id
-        WHERE a.event_id = ?
+        WHERE a.event_id = %s
         ORDER BY a.checked_in_at DESC
     ''', (event_id,)).fetchall()
     conn.close()
@@ -463,13 +478,13 @@ def event_attendance(event_id):
 @admin_required
 def export_csv(event_id):
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE id=%s', (event_id,)).fetchone()
     rows = conn.execute('''
         SELECT r.student_name, r.email, r.phone, r.college_id, r.registered_at,
                CASE WHEN a.id IS NOT NULL THEN 'Yes' ELSE 'No' END as attended,
                a.checked_in_at
         FROM registrations r LEFT JOIN attendance a ON r.id = a.registration_id
-        WHERE r.event_id = ?
+        WHERE r.event_id = %s
     ''', (event_id,)).fetchall()
     conn.close()
 
@@ -477,7 +492,7 @@ def export_csv(event_id):
     writer = csv.writer(output)
     writer.writerow(['Name', 'Email', 'Phone', 'Roll Number', 'Registered At', 'Attended', 'Check-in Time'])
     for row in rows:
-        writer.writerow(list(row))
+        writer.writerow(list(row.values()))
     output.seek(0)
     return send_file(io.BytesIO(output.getvalue().encode()),
                      mimetype='text/csv',
@@ -488,13 +503,13 @@ def export_csv(event_id):
 @admin_required
 def export_pdf(event_id):
     conn = get_db()
-    event = conn.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
+    event = conn.execute('SELECT * FROM events WHERE id=%s', (event_id,)).fetchone()
     rows = conn.execute('''
         SELECT r.student_name, r.college_id, r.email,
                CASE WHEN a.id IS NOT NULL THEN 'Present' ELSE 'Absent' END as status,
-               COALESCE(a.checked_in_at, '-') as check_in
+               COALESCE(a.checked_in_at::text, '-') as check_in
         FROM registrations r LEFT JOIN attendance a ON r.id = a.registration_id
-        WHERE r.event_id = ?
+        WHERE r.event_id = %s
     ''', (event_id,)).fetchall()
     conn.close()
 
@@ -508,7 +523,7 @@ def export_pdf(event_id):
 
     table_data = [['Name', 'Roll Number', 'Email', 'Status', 'Check-in Time']]
     for row in rows:
-        table_data.append(list(row))
+        table_data.append(list(row.values()))
 
     t = Table(table_data, colWidths=[1.4*inch, 1.1*inch, 1.8*inch, 0.9*inch, 1.5*inch])
     t.setStyle(TableStyle([
@@ -532,12 +547,12 @@ def export_pdf(event_id):
 @app.route('/api/event/<int:event_id>/stats')
 def event_stats(event_id):
     conn = get_db()
-    reg = conn.execute('SELECT COUNT(*) FROM registrations WHERE event_id=?', (event_id,)).fetchone()[0]
-    att = conn.execute('SELECT COUNT(*) FROM attendance WHERE event_id=?', (event_id,)).fetchone()[0]
+    reg = conn.execute('SELECT COUNT(*) FROM registrations WHERE event_id=%s', (event_id,)).fetchone()['count']
+    att = conn.execute('SELECT COUNT(*) FROM attendance WHERE event_id=%s', (event_id,)).fetchone()['count']
     conn.close()
     return jsonify({'registrations': reg, 'attendance': att})
 
-# Initialize the database
+# Initialize the database (creates tables if missing, refreshes admin account)
 init_db()
 
 if __name__ == '__main__':
