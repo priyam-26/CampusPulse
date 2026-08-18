@@ -9,9 +9,17 @@
 <div class="admin-page">
   <div class="admin-header">
     <div>
+      {% if session.get('admin_logged_in') %}
       <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Dashboard</a>
+      {% endif %}
       <h1>QR Code Check-in</h1>
-      <p>Scan student QR codes to record attendance</p>
+      <p>
+        {% if session.get('staff_logged_in') %}
+          Signed in as staff ({{ session.get('staff_username') }}) — scan student QR codes to record attendance
+        {% else %}
+          Scan student QR codes to record attendance
+        {% endif %}
+      </p>
     </div>
   </div>
 

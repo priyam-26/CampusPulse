@@ -22,9 +22,12 @@
       {% if session.get('admin_logged_in') %}
         <a href="{{ url_for('admin_dashboard') }}">Admin Panel</a>
         <a href="{{ url_for('checkin_page') }}">QR Check-in</a>
-        <a href="{{ url_for('admin_logout') }}" class="btn-outline">Logout</a>
+        <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>
+      {% elif session.get('staff_logged_in') %}
+        <a href="{{ url_for('checkin_page') }}">QR Check-in</a>
+        <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>
       {% else %}
-        <a href="{{ url_for('admin_login') }}" class="btn-outline">Admin Login</a>
+        <a href="{{ url_for('login') }}" class="btn-outline">Login</a>
       {% endif %}
     </div>
   </nav>

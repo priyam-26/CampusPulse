@@ -341,7 +341,8 @@ a { color: inherit; text-decoration: none; }
 .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
 .form-group label { font-size: 0.88rem; font-weight: 500; color: var(--muted); }
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   padding: 0.85rem 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -352,12 +353,14 @@ a { color: inherit; text-decoration: none; }
   transition: border-color 0.2s;
 }
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(108,99,255,0.1);
 }
 .form-group textarea { resize: vertical; }
+.form-group select { cursor: pointer; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .form-actions { display: flex; gap: 1rem; justify-content: flex-end; }

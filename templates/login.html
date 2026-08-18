@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Login — CampusPulse{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo" id="authLogo">🔐</div>
+    <h1 id="authTitle">Admin Login</h1>
+    <p id="authSubtitle">Manage events, registrations and attendance</p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label for="loginType">Login as</label>
+        <select id="loginType" name="login_type" onchange="updateLoginType()">
+          <option value="admin" {% if login_type == 'admin' %}selected{% endif %}>Admin Login</option>
+          <option value="staff" {% if login_type == 'staff' %}selected{% endif %}>Staff Login</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="username" required autofocus />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required />
+      </div>
+      <button type="submit" class="btn-primary btn-large">Sign In →</button>
+    </form>
+    <p class="auth-hint" id="authHint">Authorized administrators only</p>
+  </div>
+</div>
+
+<script>
+  const COPY = {
+    admin: {
+      icon: '🔐',
+      title: 'Admin Login',
+      subtitle: 'Manage events, registrations and attendance',
+      hint: 'Authorized administrators only'
+    },
+    staff: {
+      icon: '🎫',
+      title: 'Staff Login',
+      subtitle: 'Sign in to scan tickets at the QR check-in desk',
+      hint: 'Authorized event staff only'
+    }
+  };
+
+  function updateLoginType() {
+    const type = document.getElementById('loginType').value;
+    const copy = COPY[type] || COPY.admin;
+    document.getElementById('authLogo').textContent = copy.icon;
+    document.getElementById('authTitle').textContent = copy.title;
+    document.getElementById('authSubtitle').textContent = copy.subtitle;
+    document.getElementById('authHint').textContent = copy.hint;
+  }
+
+  updateLoginType();
+</script>
+{% endblock %}

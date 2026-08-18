@@ -59,6 +59,12 @@ if not DATABASE_URL:
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
+# Staff accounts are lower-privilege: they can only reach the QR check-in
+# page, not the rest of the admin panel. Seeded the same way as the admin
+# account, via env vars, so no one has to hand-create a row in the DB.
+STAFF_USERNAME = os.environ.get('STAFF_USERNAME')
+STAFF_PASSWORD = os.environ.get('STAFF_PASSWORD')
+
 # ─── Database Setup ────────────────────────────────────────────────────────────
 
 class DBWrapper:
@@ -137,6 +143,24 @@ def init_db():
             (ADMIN_USERNAME, generate_password_hash(ADMIN_PASSWORD))
         )
 
+    # Staff table mirrors admins (same lockout bookkeeping), but is a
+    # separate table so a staff account can never accidentally end up with
+    # admin-panel access just because the code path is shared.
+    conn.execute('''CREATE TABLE IF NOT EXISTS staff (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        locked_until TIMESTAMP
+    )''')
+
+    if STAFF_USERNAME and STAFF_PASSWORD:
+        conn.execute(
+            '''INSERT INTO staff (username, password) VALUES (%s, %s)
+               ON CONFLICT (username) DO UPDATE SET password = EXCLUDED.password''',
+            (STAFF_USERNAME, generate_password_hash(STAFF_PASSWORD))
+        )
+
     conn.commit()
     conn.close()
 
@@ -146,7 +170,25 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('admin_logged_in'):
-            return redirect(url_for('admin_login'))
+            return redirect(url_for('login', type='admin'))
+        return f(*args, **kwargs)
+    return decorated
+
+def staff_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('staff_logged_in'):
+            return redirect(url_for('login', type='staff'))
+        return f(*args, **kwargs)
+    return decorated
+
+def checkin_access_required(f):
+    """QR check-in is the one page both roles can reach: admins have it as
+    part of the full panel, staff have it as their entire dashboard."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not (session.get('admin_logged_in') or session.get('staff_logged_in')):
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -320,50 +362,96 @@ def get_qr(reg_id):
         return send_file(io.BytesIO(img_bytes), mimetype='image/png')
     return "QR not found", 404
 
-# ─── Admin Auth ──────────────────────────────────────────────────────────────
+# ─── Auth (Admin + Staff) ────────────────────────────────────────────────────
+# One shared login page with a role dropdown. Admin and staff live in
+# separate tables (see init_db) so the two roles can never blur together —
+# staff sessions only ever unlock the QR check-in page.
+
+def _attempt_login(role, username, password):
+    """Runs the lockout-aware credential check against the admins or staff
+    table and returns (success, error_message)."""
+    table = 'admins' if role == 'admin' else 'staff'
+    conn = get_db()
+    account = conn.execute(f'SELECT * FROM {table} WHERE username=%s', (username,)).fetchone()
+
+    now = datetime.utcnow()
+    if account and account['locked_until'] and account['locked_until'] > now:
+        wait_min = max(1, int((account['locked_until'] - now).total_seconds() // 60) + 1)
+        conn.close()
+        return False, f"Too many failed attempts. Try again in {wait_min} minute(s)."
+
+    if account and check_password_hash(account['password'], password):
+        conn.execute(
+            f'UPDATE {table} SET failed_attempts=0, locked_until=NULL WHERE id=%s',
+            (account['id'],)
+        )
+        conn.commit()
+        conn.close()
+        return True, None
+
+    if account:
+        attempts = account['failed_attempts'] + 1
+        locked_until = now + timedelta(minutes=LOCKOUT_MINUTES) if attempts >= MAX_LOGIN_ATTEMPTS else None
+        conn.execute(
+            f'UPDATE {table} SET failed_attempts=%s, locked_until=%s WHERE id=%s',
+            (attempts, locked_until, account['id'])
+        )
+        conn.commit()
+    conn.close()
+    return False, "Invalid credentials"
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+    if session.get('staff_logged_in'):
+        return redirect(url_for('checkin_page'))
+
+    error = None
+    # Which option the dropdown should show selected: from the query string
+    # on a fresh GET (e.g. a staff_required redirect), or from the form on
+    # a failed POST so the user doesn't lose their selection.
+    login_type = request.values.get('type', 'admin')
+    if login_type not in ('admin', 'staff'):
+        login_type = 'admin'
+
+    if request.method == 'POST':
+        login_type = request.form.get('login_type', 'admin')
+        if login_type not in ('admin', 'staff'):
+            login_type = 'admin'
+        username = request.form['username']
+        password = request.form['password']
+
+        success, err = _attempt_login(login_type, username, password)
+        if success:
+            if login_type == 'admin':
+                session['admin_logged_in'] = True
+                session['admin_username'] = username
+                return redirect(url_for('admin_dashboard'))
+            else:
+                session['staff_logged_in'] = True
+                session['staff_username'] = username
+                return redirect(url_for('checkin_page'))
+        error = err
+
+    return render_template('login.html', error=error, login_type=login_type)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    if session.get('admin_logged_in'):
-        return redirect(url_for('admin_dashboard'))
-    error = None
+    # Legacy URL, kept so old bookmarks/links still work — the login page
+    # now handles both admin and staff sign-in.
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        conn = get_db()
-        admin = conn.execute('SELECT * FROM admins WHERE username=%s', (username,)).fetchone()
+        return login()
+    return redirect(url_for('login', type='admin'))
 
-        now = datetime.utcnow()
-        if admin and admin['locked_until'] and admin['locked_until'] > now:
-            wait_min = max(1, int((admin['locked_until'] - now).total_seconds() // 60) + 1)
-            error = f"Too many failed attempts. Try again in {wait_min} minute(s)."
-        elif admin and check_password_hash(admin['password'], password):
-            conn.execute(
-                'UPDATE admins SET failed_attempts=0, locked_until=NULL WHERE id=%s',
-                (admin['id'],)
-            )
-            conn.commit()
-            session['admin_logged_in'] = True
-            session['admin_username'] = username
-            conn.close()
-            return redirect(url_for('admin_dashboard'))
-        else:
-            if admin:
-                attempts = admin['failed_attempts'] + 1
-                locked_until = now + timedelta(minutes=LOCKOUT_MINUTES) if attempts >= MAX_LOGIN_ATTEMPTS else None
-                conn.execute(
-                    'UPDATE admins SET failed_attempts=%s, locked_until=%s WHERE id=%s',
-                    (attempts, locked_until, admin['id'])
-                )
-                conn.commit()
-            error = "Invalid credentials"
-        conn.close()
-    return render_template('admin_login.html', error=error)
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route('/admin/logout')
 def admin_logout():
-    session.clear()
-    return redirect(url_for('admin_login'))
+    return logout()
 
 # ─── Admin Panel ─────────────────────────────────────────────────────────────
 
@@ -538,7 +626,7 @@ def event_registrations(event_id):
 # ─── QR Entry / Check-in ─────────────────────────────────────────────────────
 
 @app.route('/admin/checkin')
-@admin_required
+@checkin_access_required
 def checkin_page():
     conn = get_db()
     events = conn.execute('SELECT * FROM events ORDER BY date DESC').fetchall()
@@ -546,7 +634,7 @@ def checkin_page():
     return render_template('checkin.html', events=events)
 
 @app.route('/admin/checkin/verify', methods=['POST'])
-@admin_required
+@checkin_access_required
 def verify_qr():
     data = request.json
     qr_data = data.get('qr_data', '')
