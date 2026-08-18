@@ -13,7 +13,10 @@
 <body>
   <nav class="navbar">
     <a href="{{ url_for('index') }}" class="nav-logo">Campus<span>Pulse</span></a>
-    <div class="nav-links">
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="navLinks">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links" id="navLinks">
       <a href="{{ url_for('index') }}">Events</a>
       {% if session.get('admin_logged_in') %}
         <a href="{{ url_for('admin_dashboard') }}">Admin Panel</a>

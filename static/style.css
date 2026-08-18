@@ -22,6 +22,15 @@
 
 html { scroll-behavior: smooth; }
 
+/* Base font-size scales up on bigger screens so rem-based type/spacing grows
+   with the display — phones stay compact, projectors/smart boards stay legible
+   from across a room. */
+@media (min-width: 1025px) { html { font-size: 17px; } }
+@media (min-width: 1441px) { html { font-size: 18px; } }
+@media (min-width: 1920px) { html { font-size: 20px; } }
+@media (min-width: 2560px) { html { font-size: 23px; } }
+@media (min-width: 3200px) { html { font-size: 27px; } }
+
 body {
   font-family: var(--font-body);
   background: var(--bg);
@@ -68,6 +77,32 @@ a { color: inherit; text-decoration: none; }
 }
 .nav-links a { color: var(--muted); transition: color 0.2s; }
 .nav-links a:hover { color: var(--text); }
+
+/* Hamburger toggle — hidden on tablet/laptop/desktop, shown on narrow screens */
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+}
+.nav-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  margin: 0 auto;
+  background: var(--text);
+  transition: transform 0.2s, opacity 0.2s;
+}
+.nav-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle.open span:nth-child(2) { opacity: 0; }
+.nav-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
 /* ─── Buttons ──────────────────────────────────────────────────────────────── */
 .btn-primary {
@@ -666,17 +701,106 @@ footer {
 }
 
 /* ─── Responsive ───────────────────────────────────────────────────────────── */
+/* Breakpoints target: phones (≤480 / ≤640), tablets (≤1024), laptops (1025–1440),
+   desktop monitors (1441–1919), and large displays / projectors / smart boards
+   (≥1920, ≥2560). Layout adapts via flex/grid; legibility scales via the
+   html font-size rules near the top of this file. */
+
+/* Tablets and small laptops */
+@media (max-width: 1024px) {
+  .hero { padding: 3.5rem 2rem 3rem; }
+  .checkin-layout { grid-template-columns: 1fr; }
+  .form-page { gap: 2rem; }
+  .form-sidebar { width: 260px; }
+}
+
+/* Tablets / large phones (landscape) */
+@media (max-width: 900px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Phones and portrait tablets */
 @media (max-width: 768px) {
-  .hero { flex-direction: column; padding: 3rem 1.5rem 2rem; }
+  .navbar { padding: 1rem 1.25rem; position: relative; }
+
+  .nav-toggle { display: flex; }
+  .nav-links {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+  }
+  .nav-links.open { max-height: 320px; }
+  .nav-links a {
+    padding: 0.9rem 1.5rem;
+    border-top: 1px solid var(--border);
+    width: 100%;
+  }
+  .nav-links a.btn-outline { margin: 0.75rem 1.5rem 1rem; width: auto; }
+
+  .hero { flex-direction: column; padding: 2.5rem 1.25rem 2rem; text-align: center; }
+  .hero-content p { max-width: none; margin: 0 auto; }
   .hero-graphic { display: none; }
+
+  .events-section { padding: 0 1.25rem 3rem; }
   .events-grid { grid-template-columns: 1fr; }
-  .form-page { flex-direction: column; padding: 1.5rem; }
+  .section-header { flex-wrap: wrap; }
+
+  .form-page { flex-direction: column; padding: 1.25rem; gap: 1.5rem; }
   .form-sidebar { width: 100%; }
   .sidebar-content { position: static; }
-  .stats-grid { grid-template-columns: repeat(2,1fr); }
-  .checkin-layout { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
-  .navbar { padding: 1rem 1.5rem; }
-  .admin-page { padding: 1.5rem; }
-  .admin-header { flex-direction: column; }
+  .form-actions { flex-direction: column-reverse; }
+  .form-actions .btn-primary, .form-actions .btn-outline { width: 100%; text-align: center; }
+
+  .admin-page { padding: 1.25rem; }
+  .admin-header { flex-direction: column; align-items: stretch; }
+  .header-actions { flex-wrap: wrap; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .ticket-body { flex-direction: column; }
+  .ticket-qr { border-left: none; border-top: 1px dashed var(--border); }
+  .confirmation-actions { flex-direction: column; }
+  .confirmation-page { padding: 2rem 1.25rem; }
+
+  .auth-card { padding: 1.75rem; }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .stats-grid.mini { grid-template-columns: 1fr 1fr; max-width: none; }
+  .hero-badge { font-size: 0.78rem; }
+  .table-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .data-table th, .data-table td { padding: 0.65rem 0.75rem; }
+  .actions { gap: 0.4rem; }
+}
+
+/* Laptops and desktop monitors — give the layout more breathing room */
+@media (min-width: 1441px) {
+  .hero, .events-section, .admin-page, .form-page { max-width: 1320px; }
+  .events-grid { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+}
+
+/* Large desktop displays, projectors, smart boards — content is often viewed
+   from a distance, so widen containers and keep line-lengths comfortable
+   rather than letting text stretch edge-to-edge. */
+@media (min-width: 1920px) {
+  .hero, .events-section, .admin-page, .form-page { max-width: 1600px; }
+  .events-grid { grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); }
+  .navbar { padding: 1.5rem 4rem; }
+}
+
+@media (min-width: 2560px) {
+  .hero, .events-section, .admin-page, .form-page { max-width: 1900px; }
+  .navbar { padding: 1.75rem 5rem; }
 }
