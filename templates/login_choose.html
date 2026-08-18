@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Login — CampusPulse{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">👋</div>
+    <h1>Login</h1>
+    <p>Choose how you'd like to sign in</p>
+
+    <div class="login-choice-options">
+      <a href="{{ url_for('admin_login') }}" class="login-choice-card">
+        <span class="login-choice-icon">🔐</span>
+        <span class="login-choice-label">Admin Login</span>
+      </a>
+      <a href="{{ url_for('staff_login') }}" class="login-choice-card">
+        <span class="login-choice-icon">🪪</span>
+        <span class="login-choice-label">Staff Login</span>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

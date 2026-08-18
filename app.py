@@ -170,7 +170,7 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('admin_logged_in'):
-            return redirect(url_for('login', type='admin'))
+            return redirect(url_for('admin_login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -178,7 +178,7 @@ def staff_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('staff_logged_in'):
-            return redirect(url_for('login', type='staff'))
+            return redirect(url_for('staff_login'))
         return f(*args, **kwargs)
     return decorated
 
@@ -188,7 +188,7 @@ def checkin_access_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not (session.get('admin_logged_in') or session.get('staff_logged_in')):
-            return redirect(url_for('login'))
+            return redirect(url_for('login_choose'))
         return f(*args, **kwargs)
     return decorated
 
@@ -400,54 +400,57 @@ def _attempt_login(role, username, password):
     conn.close()
     return False, "Invalid credentials"
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
+# Per-role display copy for the login pages — kept in one place so the icon
+# and hint text for each role can't drift apart from each other.
+LOGIN_META = {
+    'admin': {'icon': '🔐', 'title': 'Admin Login', 'hint': 'Authorized administrators only'},
+    'staff': {'icon': '🪪', 'title': 'Staff Login', 'hint': 'Authorized users only'},
+}
+
+def _handle_role_login(role):
+    """Shared GET/POST handling for the admin and staff login pages."""
+    session_key = f'{role}_logged_in'
+    home_endpoint = 'admin_dashboard' if role == 'admin' else 'checkin_page'
+
+    if session.get(session_key):
+        return redirect(url_for(home_endpoint))
+
+    error = None
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        success, err = _attempt_login(role, username, password)
+        if success:
+            session[session_key] = True
+            session[f'{role}_username'] = username
+            return redirect(url_for(home_endpoint))
+        error = err
+
+    return render_template('login.html', error=error, role=role, meta=LOGIN_META[role])
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    return _handle_role_login('admin')
+
+@app.route('/staff/login', methods=['GET', 'POST'])
+def staff_login():
+    return _handle_role_login('staff')
+
+@app.route('/login')
+def login_choose():
+    """Fallback landing page for anyone who hits a protected page without
+    being signed in, or navigates to /login directly. The navbar's Login
+    button normally skips this and links straight to the two role pages."""
     if session.get('admin_logged_in'):
         return redirect(url_for('admin_dashboard'))
     if session.get('staff_logged_in'):
         return redirect(url_for('checkin_page'))
-
-    error = None
-    # Which option the dropdown should show selected: from the query string
-    # on a fresh GET (e.g. a staff_required redirect), or from the form on
-    # a failed POST so the user doesn't lose their selection.
-    login_type = request.values.get('type', 'admin')
-    if login_type not in ('admin', 'staff'):
-        login_type = 'admin'
-
-    if request.method == 'POST':
-        login_type = request.form.get('login_type', 'admin')
-        if login_type not in ('admin', 'staff'):
-            login_type = 'admin'
-        username = request.form['username']
-        password = request.form['password']
-
-        success, err = _attempt_login(login_type, username, password)
-        if success:
-            if login_type == 'admin':
-                session['admin_logged_in'] = True
-                session['admin_username'] = username
-                return redirect(url_for('admin_dashboard'))
-            else:
-                session['staff_logged_in'] = True
-                session['staff_username'] = username
-                return redirect(url_for('checkin_page'))
-        error = err
-
-    return render_template('login.html', error=error, login_type=login_type)
-
-@app.route('/admin/login', methods=['GET', 'POST'])
-def admin_login():
-    # Legacy URL, kept so old bookmarks/links still work — the login page
-    # now handles both admin and staff sign-in.
-    if request.method == 'POST':
-        return login()
-    return redirect(url_for('login', type='admin'))
+    return render_template('login_choose.html')
 
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    return redirect(url_for('login_choose'))
 
 @app.route('/admin/logout')
 def admin_logout():

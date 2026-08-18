@@ -91,6 +91,40 @@ if (navToggle && navLinks) {
   });
 }
 
+// Login dropdown (navbar "Login" button → Admin Login / Staff Login)
+const loginDropdown = document.getElementById('loginDropdown');
+const loginDropdownToggle = document.getElementById('loginDropdownToggle');
+const loginDropdownMenu = document.getElementById('loginDropdownMenu');
+if (loginDropdown && loginDropdownToggle && loginDropdownMenu) {
+  const closeLoginDropdown = () => {
+    loginDropdown.classList.remove('open');
+    loginDropdownToggle.setAttribute('aria-expanded', 'false');
+  };
+  loginDropdownToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = loginDropdown.classList.toggle('open');
+    loginDropdownToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+  document.addEventListener('click', (e) => {
+    if (!loginDropdown.contains(e.target)) closeLoginDropdown();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLoginDropdown();
+  });
+}
+
+// Password show/hide toggle (login pages)
+document.querySelectorAll('.password-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const input = document.getElementById(btn.dataset.target);
+    if (!input) return;
+    const revealed = input.type === 'text';
+    input.type = revealed ? 'password' : 'text';
+    btn.textContent = revealed ? '👁' : '🙈';
+    btn.setAttribute('aria-label', revealed ? 'Show password' : 'Hide password');
+  });
+});
+
 // Animate numbers on admin dashboard
 document.querySelectorAll('.stat-num').forEach(el => {
   const target = parseInt(el.textContent.replace(/[^0-9]/g, ''));

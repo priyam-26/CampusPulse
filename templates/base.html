@@ -27,7 +27,15 @@
         <a href="{{ url_for('checkin_page') }}">QR Check-in</a>
         <a href="{{ url_for('logout') }}" class="btn-outline">Logout</a>
       {% else %}
-        <a href="{{ url_for('login') }}" class="btn-outline">Login</a>
+        <div class="login-dropdown" id="loginDropdown">
+          <button type="button" class="btn-outline login-dropdown-toggle" id="loginDropdownToggle" aria-haspopup="true" aria-expanded="false">
+            Login <span class="login-dropdown-caret">▾</span>
+          </button>
+          <div class="login-dropdown-menu" id="loginDropdownMenu" role="menu">
+            <a href="{{ url_for('admin_login') }}" role="menuitem">🔐 Admin Login</a>
+            <a href="{{ url_for('staff_login') }}" role="menuitem">🪪 Staff Login</a>
+          </div>
+        </div>
       {% endif %}
     </div>
   </nav>

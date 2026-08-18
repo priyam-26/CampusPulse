@@ -458,11 +458,78 @@ a { color: inherit; text-decoration: none; }
   text-align: center;
 }
 .auth-logo { font-size: 2.5rem; margin-bottom: 1rem; }
-.auth-card h1 { font-family: var(--font-head); font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem; }
-.auth-card > p { color: var(--muted); margin-bottom: 2rem; }
+.auth-card h1 { font-family: var(--font-head); font-size: 1.8rem; font-weight: 800; margin-bottom: 1.75rem; }
+.auth-card > p { color: var(--muted); margin-bottom: 2rem; margin-top: -1.25rem; }
 .auth-form { text-align: left; display: flex; flex-direction: column; gap: 1.2rem; }
 .auth-hint { margin-top: 1rem; font-size: 0.82rem; color: var(--muted); }
 .auth-hint code { background: var(--surface2); padding: 0.1rem 0.4rem; border-radius: 4px; }
+
+/* Password field with show/hide eye toggle */
+.password-field { position: relative; display: flex; align-items: center; }
+.password-field input { width: 100%; padding-right: 2.75rem; }
+.password-toggle {
+  position: absolute;
+  right: 0.65rem;
+  background: none;
+  border: none;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem;
+  color: var(--muted);
+  border-radius: 6px;
+}
+.password-toggle:hover { color: var(--text); }
+.password-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Login chooser page (fallback for /login) */
+.login-choice-options { display: flex; gap: 1rem; }
+.login-choice-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.5rem 1rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.login-choice-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.login-choice-icon { font-size: 2rem; }
+.login-choice-label { font-weight: 600; font-size: 0.95rem; }
+
+/* Navbar Login dropdown */
+.login-dropdown { position: relative; }
+.login-dropdown-toggle { display: inline-flex; align-items: center; gap: 0.35rem; }
+.login-dropdown-caret { font-size: 0.7rem; transition: transform 0.2s; }
+.login-dropdown.open .login-dropdown-caret { transform: rotate(180deg); }
+.login-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  overflow: hidden;
+  z-index: 50;
+}
+.login-dropdown.open .login-dropdown-menu { display: block; }
+.login-dropdown-menu a {
+  display: block;
+  padding: 0.7rem 1rem;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.login-dropdown-menu a:hover { background: var(--surface2); }
 
 /* ─── Admin Page ─────────────────────────────────────────────────────────────── */
 .admin-page { max-width: 1200px; margin: 0 auto; padding: 2.5rem; }
