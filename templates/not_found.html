@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Not Found — CampusPulse{% endblock %}
+
+{% block content %}
+<div class="empty-state">
+  <div class="empty-icon">🔍</div>
+  <h3>404 — Not Found</h3>
+  <p>{{ message }}</p>
+  <a href="{{ url_for('index') }}" class="btn-primary">← Back to Events</a>
+</div>
+{% endblock %}

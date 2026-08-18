@@ -21,6 +21,7 @@
     {% endwith %}
 
     <form method="POST" class="reg-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>Event Name</label>
         <input type="text" name="name" value="{{ event.name if event else '' }}" placeholder="e.g. Bug Hunt Bonanza" required />

@@ -105,7 +105,10 @@ function verifyManual() {
 async function verifyQR(qrData) {
   const res = await fetch('/admin/checkin/verify', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+    },
     body: JSON.stringify({ qr_data: qrData })
   });
   const data = await res.json();
