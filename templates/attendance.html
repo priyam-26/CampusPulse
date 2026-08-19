@@ -7,7 +7,7 @@
     <div>
       <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Dashboard</a>
       <h1>Attendance — {{ event.name }}</h1>
-      <p>📅 {{ event.date }} &nbsp;|&nbsp; 📍 {{ event.venue }}</p>
+      <p>📅 {{ event.date|friendly_date }} &nbsp;|&nbsp; 📍 {{ event.venue }}</p>
     </div>
     <div class="header-actions">
       <a href="{{ url_for('export_csv', event_id=event.id) }}" class="btn-outline">⬇ Export CSV</a>
@@ -49,12 +49,12 @@
         <tbody>
           {% for a in attendance %}
           <tr>
-            <td>{{ loop.index }}</td>
-            <td><strong>{{ a.student_name }}</strong></td>
-            <td><code>{{ a.college_id }}</code></td>
-            <td>{{ a.email }}</td>
-            <td>{{ a.phone }}</td>
-            <td>{{ a.checked_in_at[:16] }}</td>
+            <td data-label="#">{{ loop.index }}</td>
+            <td data-label="Name"><strong>{{ a.student_name }}</strong></td>
+            <td data-label="Roll Number"><code>{{ a.college_id }}</code></td>
+            <td data-label="Email">{{ a.email or '—' }}</td>
+            <td data-label="Phone">{{ a.phone }}</td>
+            <td data-label="Check-in Time">{{ a.checked_in_at[:16] }}</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -8,9 +8,12 @@
       <a href="{{ url_for('index') }}" class="back-link">← Back to Events</a>
       <h2>{{ event.name }}</h2>
       <div class="sidebar-details">
-        <div class="detail-item"><span>📅</span> {{ event.date }}</div>
-        <div class="detail-item"><span>⏰</span> {{ event.time }}</div>
+        <div class="detail-item"><span>📅</span> {{ event.date|friendly_date }}</div>
+        <div class="detail-item"><span>⏰</span> {{ event.time|friendly_time }}</div>
         <div class="detail-item"><span>📍</span> {{ event.venue }}</div>
+        {% if event.coordinator %}
+        <div class="detail-item"><span>🧑‍💼</span> Coordinator: {{ event.coordinator }}</div>
+        {% endif %}
         <div class="detail-item"><span>👥</span> {{ reg_count }} / {{ event.max_participants }} registered</div>
       </div>
       {% if event.description %}
@@ -36,20 +39,20 @@
     <form method="POST" class="reg-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
-        <label for="name">Full Name</label>
+        <label for="name">Full Name <span class="req-star" title="Required">*</span></label>
         <input type="text" id="name" name="name" placeholder="e.g. Rishi Gupta" maxlength="120" required />
       </div>
       <div class="form-group">
-        <label for="email">Email Address</label>
-        <input type="email" id="email" name="email" placeholder="example@gmail.com" maxlength="254" required />
+        <label for="email">Email Address <span class="optional-tag">(optional)</span></label>
+        <input type="email" id="email" name="email" placeholder="example@gmail.com" maxlength="254" />
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label for="phone">Phone Number</label>
+          <label for="phone">Phone Number <span class="req-star" title="Required">*</span></label>
           <input type="tel" id="phone" name="phone" placeholder="+91 XXXXX XXXXX" pattern="[0-9+\-\s()]{7,15}" maxlength="15" required />
         </div>
         <div class="form-group">
-          <label for="college_id">Roll Number</label>
+          <label for="college_id">Roll Number <span class="req-star" title="Required">*</span></label>
           <input type="text" id="college_id" name="college_id" placeholder="e.g. YYYY-BRANCH-XX" maxlength="50" required />
         </div>
       </div>

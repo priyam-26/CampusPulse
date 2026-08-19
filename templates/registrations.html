@@ -7,7 +7,7 @@
     <div>
       <a href="{{ url_for('admin_dashboard') }}" class="back-link">← Dashboard</a>
       <h1>{{ event.name }}</h1>
-      <p>📅 {{ event.date }} &nbsp;|&nbsp; 📍 {{ event.venue }}</p>
+      <p>📅 {{ event.date|friendly_date }} &nbsp;|&nbsp; 📍 {{ event.venue }}</p>
     </div>
     <div class="header-actions">
       <a href="{{ url_for('export_csv', event_id=event.id) }}" class="btn-outline">⬇ CSV</a>
@@ -38,20 +38,20 @@
         <tbody>
           {% for r in registrations %}
           <tr>
-            <td>{{ loop.index }}</td>
-            <td><strong>{{ r.student_name }}</strong></td>
-            <td><code>{{ r.college_id }}</code></td>
-            <td>{{ r.email }}</td>
-            <td>{{ r.phone }}</td>
-            <td>{{ r.registered_at[:16] }}</td>
-            <td>
+            <td data-label="#">{{ loop.index }}</td>
+            <td data-label="Name"><strong>{{ r.student_name }}</strong></td>
+            <td data-label="Roll Number"><code>{{ r.college_id }}</code></td>
+            <td data-label="Email">{{ r.email or '—' }}</td>
+            <td data-label="Phone">{{ r.phone }}</td>
+            <td data-label="Registered At">{{ r.registered_at[:16] }}</td>
+            <td data-label="Status">
               {% if r.checked_in %}
                 <span class="status-badge status-present">✅ Present</span>
               {% else %}
                 <span class="status-badge status-absent">⏳ Pending</span>
               {% endif %}
             </td>
-            <td>{{ r.checked_in_at[:16] if r.checked_in_at else '—' }}</td>
+            <td data-label="Check-in">{{ r.checked_in_at[:16] if r.checked_in_at else '—' }}</td>
           </tr>
           {% endfor %}
         </tbody>

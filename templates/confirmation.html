@@ -29,11 +29,11 @@
           </div>
           <div class="ticket-row">
             <span class="t-label">Date</span>
-            <span class="t-value">{{ reg.date }}</span>
+            <span class="t-value">{{ reg.date|friendly_date }}</span>
           </div>
           <div class="ticket-row">
             <span class="t-label">Time</span>
-            <span class="t-value">{{ reg.time }}</span>
+            <span class="t-value">{{ reg.time|friendly_time }}</span>
           </div>
           <div class="ticket-row">
             <span class="t-label">Venue</span>

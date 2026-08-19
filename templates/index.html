@@ -27,8 +27,8 @@
     <div class="event-card">
       <div class="event-card-header">
         <div class="event-meta">
-          <span class="event-date">📅 {{ event.date }}</span>
-          <span class="event-time">⏰ {{ event.time }}</span>
+          <span class="event-date">📅 {{ event.date|friendly_date }}</span>
+          <span class="event-time">⏰ {{ event.time|friendly_time }}</span>
         </div>
         {% set spots_left = event.max_participants - event.registered_count %}
         {% if spots_left <= 0 %}
@@ -45,6 +45,9 @@
       {% endif %}
       <div class="event-info">
         <div class="info-row">📍 {{ event.venue }}</div>
+        {% if event.coordinator %}
+        <div class="info-row">🧑‍💼 Coordinator: {{ event.coordinator }}</div>
+        {% endif %}
         <div class="info-row">👥 {{ event.registered_count }} / {{ event.max_participants }} registered</div>
       </div>
       <div class="progress-bar">

@@ -54,6 +54,7 @@
             <th>Event</th>
             <th>Date & Time</th>
             <th>Venue</th>
+            <th>Coordinator</th>
             <th>Registrations</th>
             <th>Attendance</th>
             <th>Share Link</th>
@@ -63,28 +64,29 @@
         <tbody>
           {% for event in events %}
           <tr>
-            <td>
+            <td data-label="Event" class="stack">
               <strong>{{ event.name }}</strong>
               {% if event.description %}
                 <br><small>{{ event.description[:60] }}...</small>
               {% endif %}
             </td>
-            <td>{{ event.date }}<br><small>{{ event.time }}</small></td>
-            <td>{{ event.venue }}</td>
-            <td>
+            <td data-label="Date & Time">{{ event.date|friendly_date }}<br><small>{{ event.time|friendly_time }}</small></td>
+            <td data-label="Venue">{{ event.venue }}</td>
+            <td data-label="Coordinator">{{ event.coordinator }}</td>
+            <td data-label="Registrations">
               <div class="mini-stat">{{ event.reg_count }} / {{ event.max_participants }}</div>
               <div class="mini-bar"><div style="width:{{ [(event.reg_count/event.max_participants*100),100]|min }}%"></div></div>
             </td>
-            <td>
+            <td data-label="Attendance">
               <span class="att-badge">{{ event.att_count }}</span>
             </td>
-            <td>
+            <td data-label="Share Link" class="stack">
               <div class="share-link-cell">
                 <input type="text" class="share-link-input" value="{{ event.share_url }}" readonly style="width:100%; padding:4px; border:1px solid #ddd; border-radius:4px; font-size:12px;">
                 <button type="button" class="action-btn" onclick="copyShareLink('{{ event.share_url }}')">📋</button>
               </div>
             </td>
-            <td class="actions">
+            <td data-label="Actions" class="actions stack">
               <a href="{{ url_for('event_registrations', event_id=event.id) }}" class="action-btn">👥</a>
               <a href="{{ url_for('event_attendance', event_id=event.id) }}" class="action-btn">📋</a>
               <a href="{{ url_for('export_csv', event_id=event.id) }}" class="action-btn">CSV</a>

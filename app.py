@@ -103,16 +103,25 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
 
+    # Coordinator — added after initial launch, so patched in with
+    # IF NOT EXISTS the same way the admin lockout columns are below.
+    # Existing rows get an empty string; the form requires it going forward.
+    conn.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS coordinator TEXT NOT NULL DEFAULT ''")
+
     conn.execute('''CREATE TABLE IF NOT EXISTS registrations (
         id SERIAL PRIMARY KEY,
         event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         student_name TEXT NOT NULL,
-        email TEXT NOT NULL,
+        email TEXT,
         phone TEXT NOT NULL,
         college_id TEXT NOT NULL,
         qr_code TEXT,
         registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
+
+    # Email used to be required; it's now optional on the registration form.
+    # DROP NOT NULL is safe to re-run every startup even once already dropped.
+    conn.execute('ALTER TABLE registrations ALTER COLUMN email DROP NOT NULL')
 
     conn.execute('''CREATE TABLE IF NOT EXISTS attendance (
         id SERIAL PRIMARY KEY,
@@ -204,14 +213,35 @@ LOCKOUT_MINUTES = 15
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 PHONE_RE = re.compile(r'^[0-9+\-\s()]{7,15}$')
 
+# ─── Display Formatting ──────────────────────────────────────────────────────
+# Dates/times are stored as plain "YYYY-MM-DD" / "HH:MM" strings, which is
+# fine for the DB but not great to read. These filters render them as
+# "Aug 25, 2026" / "02:30 PM" wherever they're shown to a person.
+
+@app.template_filter('friendly_date')
+def friendly_date(value):
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').strftime('%b %d, %Y')
+    except (TypeError, ValueError):
+        return value
+
+@app.template_filter('friendly_time')
+def friendly_time(value):
+    try:
+        return datetime.strptime(value, '%H:%M').strftime('%I:%M %p')
+    except (TypeError, ValueError):
+        return value
+
 def validate_registration_fields(name, email, phone, college_id):
     """Returns an error string if any field is invalid, else None.
     The HTML form already nudges users with `required`, but that's
     client-side only and trivially bypassed, so everything is re-checked
-    here before it touches the database."""
+    here before it touches the database.
+    Email is optional — only validated for format when the person
+    actually provided one."""
     if not name or len(name) > 120:
         return "Please enter a valid name."
-    if not email or len(email) > 254 or not EMAIL_RE.match(email):
+    if email and (len(email) > 254 or not EMAIL_RE.match(email)):
         return "Please enter a valid email address."
     if not phone or not PHONE_RE.match(phone):
         return "Please enter a valid phone number."
@@ -277,7 +307,7 @@ def register(event_id):
 
     if request.method == 'POST':
         name = request.form['name'].strip()
-        email = request.form['email'].strip()
+        email = request.form.get('email', '').strip() or None
         phone = request.form['phone'].strip()
         college_id = request.form['college_id'].strip()
 
@@ -293,11 +323,27 @@ def register(event_id):
         # registration that hasn't landed yet.
         conn.execute('SELECT id FROM events WHERE id = %s FOR UPDATE', (event_id,))
 
-        # Check duplicate
-        existing = conn.execute(
-            'SELECT id FROM registrations WHERE event_id=%s AND (email=%s OR college_id=%s)',
-            (event_id, email, college_id)
-        ).fetchone()
+        # Check duplicates, all scoped to this event:
+        #  - same roll number can't register twice for the same event
+        #  - same name + phone can't register twice
+        #  - same name + email can't register twice (only when an email was given)
+        if email:
+            existing = conn.execute(
+                '''SELECT id FROM registrations WHERE event_id=%s AND (
+                       college_id = %s
+                       OR (LOWER(student_name) = LOWER(%s) AND phone = %s)
+                       OR (LOWER(student_name) = LOWER(%s) AND LOWER(email) = LOWER(%s))
+                   )''',
+                (event_id, college_id, name, phone, name, email)
+            ).fetchone()
+        else:
+            existing = conn.execute(
+                '''SELECT id FROM registrations WHERE event_id=%s AND (
+                       college_id = %s
+                       OR (LOWER(student_name) = LOWER(%s) AND phone = %s)
+                   )''',
+                (event_id, college_id, name, phone)
+            ).fetchone()
         if existing:
             conn.rollback()
             conn.close()
@@ -487,7 +533,7 @@ def admin_dashboard():
                            total_registrations=total_registrations,
                            total_attendance=total_attendance)
 
-def validate_event_fields(name, description, venue, max_participants_raw):
+def validate_event_fields(name, description, venue, max_participants_raw, coordinator):
     """Returns an error string if any field is invalid, else None."""
     if not name or len(name) > 150:
         return "Please enter an event name (under 150 characters)."
@@ -495,6 +541,8 @@ def validate_event_fields(name, description, venue, max_participants_raw):
         return "Description is too long (max 2000 characters)."
     if not venue or len(venue) > 150:
         return "Please enter a venue (under 150 characters)."
+    if not coordinator or len(coordinator) > 120:
+        return "Please enter a coordinator name (under 120 characters)."
     try:
         max_p = int(max_participants_raw)
     except (TypeError, ValueError):
@@ -513,8 +561,9 @@ def create_event():
         time = request.form['time']
         venue = request.form['venue'].strip()
         max_participants_raw = request.form['max_participants']
+        coordinator = request.form.get('coordinator', '').strip()
 
-        field_error = validate_event_fields(name, description, venue, max_participants_raw)
+        field_error = validate_event_fields(name, description, venue, max_participants_raw, coordinator)
         if field_error:
             flash(field_error, "error")
             return render_template('event_form.html', event=None, action='Create')
@@ -554,8 +603,9 @@ def create_event():
                 event=None,
                 action='Create'
             )
-        conn.execute('INSERT INTO events (name, description, date, time, venue, max_participants, share_link) VALUES (%s,%s,%s,%s,%s,%s,%s)',
-                     (name, description, date, time, venue, max_p, share_link))
+        conn.execute('''INSERT INTO events (name, description, date, time, venue, max_participants, coordinator, share_link)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s)''',
+                     (name, description, date, time, venue, max_p, coordinator, share_link))
         conn.commit()
         conn.close()
         return redirect(url_for('admin_dashboard'))
@@ -573,8 +623,9 @@ def edit_event(event_id):
         time = request.form['time']
         venue = request.form['venue'].strip()
         max_participants_raw = request.form['max_participants']
+        coordinator = request.form.get('coordinator', '').strip()
 
-        field_error = validate_event_fields(name, description, venue, max_participants_raw)
+        field_error = validate_event_fields(name, description, venue, max_participants_raw, coordinator)
         if field_error:
             conn.close()
             flash(field_error, "error")
@@ -587,9 +638,9 @@ def edit_event(event_id):
             flash("Please enter a valid date.", "error")
             return render_template('event_form.html', event=event, action='Edit')
 
-        conn.execute('''UPDATE events SET name=%s, description=%s, date=%s, time=%s, venue=%s, max_participants=%s
+        conn.execute('''UPDATE events SET name=%s, description=%s, date=%s, time=%s, venue=%s, max_participants=%s, coordinator=%s
                         WHERE id=%s''',
-                     (name, description, date, time, venue, int(max_participants_raw), event_id))
+                     (name, description, date, time, venue, int(max_participants_raw), coordinator, event_id))
         conn.commit()
         conn.close()
         return redirect(url_for('admin_dashboard'))
