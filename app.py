@@ -832,7 +832,7 @@ def not_found(e):
     return render_template('not_found.html', message=message), 404
 
 # Initialize the database (creates tables if missing, refreshes admin account)
-init_db()
+# init_db()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
