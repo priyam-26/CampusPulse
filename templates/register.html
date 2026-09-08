@@ -12,7 +12,7 @@
         <div class="detail-item"><span>⏰</span> {{ event.time|friendly_time }}</div>
         <div class="detail-item"><span>📍</span> {{ event.venue }}</div>
         {% if event.coordinator %}
-        <div class="detail-item"><span>🧑‍💼</span> Coordinator: {{ event.coordinator }}</div>
+        <div class="detail-item"><span>💼</span> Coordinator: {{ event.coordinator }}</div>
         {% endif %}
         <div class="detail-item"><span>👥</span> {{ reg_count }} / {{ event.max_participants }} registered</div>
       </div>
