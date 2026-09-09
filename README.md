@@ -65,9 +65,9 @@ The system provides separate access for administrators and staff, allowing event
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="static/assets/admin-dashboard.png" alt="Admin Dashboard">
+      <img src="static/assets/admin-panel.png" alt="Admin Panel">
       <br>
-      <b>Admin Dashboard</b>
+      <b>Admin Panel</b>
     </td>
     <td width="50%" align="center">
       <img src="static/assets/event-management.png" alt="Event Management">
