@@ -50,38 +50,56 @@ The system provides separate access for administrators and staff, allowing event
 
 ## 📸 Screenshots
 
-### 🏠 Home Page
-
-![CampusPulse Home Page](screenshots/home.png)
-
-### 🔐 Login
-
-![CampusPulse Login](screenshots/login.png)
-
-### 📊 Admin Dashboard
-
-![CampusPulse Admin Dashboard](screenshots/admin-dashboard.png)
-
-### 📅 Event Management
-
-![CampusPulse Event Management](screenshots/event-management.png)
-
-### 📝 Student Registration
-
-![CampusPulse Registration](screenshots/registration.png)
-
-### 🎟️ QR Pass
-
-![CampusPulse QR Pass](screenshots/qr-pass.png)
-
-### 📱 QR Check-in
-
-![CampusPulse QR Check-in](screenshots/check-in.png)
-
-### 📈 Attendance
-
-![CampusPulse Attendance](screenshots/attendance.png)
-
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="static/assets/home.png" alt="Home Page">
+      <br>
+      <b>Home Page</b>
+    </td>
+    <td width="50%" align="center">
+      <img src="static/assets/login.png" alt="Login">
+      <br>
+      <b>Login</b>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="static/assets/admin-dashboard.png" alt="Admin Dashboard">
+      <br>
+      <b>Admin Dashboard</b>
+    </td>
+    <td width="50%" align="center">
+      <img src="static/assets/event-management.png" alt="Event Management">
+      <br>
+      <b>Event Management</b>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="static/assets/registration.png" alt="Student Registration">
+      <br>
+      <b>Student Registration</b>
+    </td>
+    <td width="50%" align="center">
+      <img src="static/assets/qr-pass.png" alt="QR Pass">
+      <br>
+      <b>QR Pass</b>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="static/assets/check-in.png" alt="QR Check-in">
+      <br>
+      <b>QR Check-in</b>
+    </td>
+    <td width="50%" align="center">
+      <img src="static/assets/attendance.png" alt="Attendance">
+      <br>
+      <b>Attendance</b>
+    </td>
+  </tr>
+</table>
 ---
 
 ## 🔐 Security & Validation
